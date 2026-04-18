@@ -60,6 +60,7 @@ namespace StudentApi.Controllers
 
                 // Role (Student or Admin) used later for authorization
                 new Claim(ClaimTypes.Role, student.Role)
+            
             };
 
 

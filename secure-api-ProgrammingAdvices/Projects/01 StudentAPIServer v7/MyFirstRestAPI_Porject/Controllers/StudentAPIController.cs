@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Mvc; 
-using StudentApi.Models;
-using StudentApi.DataSimulation;
-using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc; 
+using StudentApi.DataSimulation;
+using StudentApi.Models;
+using System.Collections.Generic;
+using System.Security.Claims;
 
 namespace StudentApi.Controllers 
 {
@@ -70,28 +71,6 @@ namespace StudentApi.Controllers
         }
 
 
-        [HttpGet("{id}", Name = "GetStudentById")]
-        
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-
-        public ActionResult<Student> GetStudentById(int id)
-        {
-
-            if (id < 1)
-            {
-                return BadRequest($"Not accepted ID {id}");
-            }
-
-            var student = StudentDataSimulation.StudentsList.FirstOrDefault(s => s.Id == id);
-            if (student == null)
-            {
-                return NotFound($"Student with ID {id} not found.");
-            }
-
-            return Ok(student);
-        }
 
         //for add new we use Http Post
         
@@ -161,6 +140,69 @@ namespace StudentApi.Controllers
             return Ok(student);
         }
 
+        // This endpoint retrieves a single student by ID.
+        // It is protected by authentication at the controller level.
+        // Authorization logic inside this method enforces ownership rules.
+        [HttpGet("{id}", Name = "GetStudentById")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<Student> GetStudentById(int id)
+        {
+            // Validate the incoming route parameter.
+            // IDs less than 1 are not valid and indicate a bad request.
+            if (id < 1)
+                return BadRequest("Invalid student id.");
+
+
+            // Attempt to find the requested student in the data store.
+            // This represents the resource the user is trying to access.
+            var student = StudentDataSimulation.StudentsList
+                .FirstOrDefault(s => s.Id == id);
+
+
+            // If no student exists with this ID, return 404 Not Found.
+            // This prevents leaking information about valid IDs.
+            if (student == null)
+                return NotFound("Student not found.");
+
+
+            // Extract the authenticated user's ID from the JWT.
+            // This value was placed into the token during login
+            // and validated by the JWT authentication middleware.
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var x=User.Identity.IsAuthenticated;
+
+            // Extract the authenticated user's role from the JWT.
+            // Typical values are "Student" or "Admin".
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            
+
+            // Convert the authenticated user ID from string to integer.
+            // This represents the identity of the caller.
+            int authenticatedStudentId = int.Parse(userId);
+
+
+            // Determine whether the current user is an Admin.
+            // Admins are allowed to access any student record.
+            bool isAdmin = userRole == "Admin";
+            
+
+            // Ownership check:
+            // If the user is NOT an admin and is trying to access
+            // a student record that does not belong to them,
+            // the request is forbidden.
+            if (!isAdmin && authenticatedStudentId != id)
+                return Forbid(); // Returns HTTP 403 Forbidden
+
+
+            // If all checks pass:
+            // - The user is authenticated
+            // - The student exists
+            // - The user is either the owner or an admin
+            // Access is granted and the student record is returned.
+            return Ok(student);
+        }
 
     }
 }
