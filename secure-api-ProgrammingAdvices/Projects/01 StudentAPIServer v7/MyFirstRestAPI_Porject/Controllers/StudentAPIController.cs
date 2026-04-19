@@ -143,6 +143,8 @@ namespace StudentApi.Controllers
         // This endpoint retrieves a single student by ID.
         // It is protected by authentication at the controller level.
         // Authorization logic inside this method enforces ownership rules.
+
+        /*
         [HttpGet("{id}", Name = "GetStudentById")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -201,6 +203,31 @@ namespace StudentApi.Controllers
             // - The student exists
             // - The user is either the owner or an admin
             // Access is granted and the student record is returned.
+            return Ok(student);
+        }
+        */
+        [HttpGet("{id}", Name = "GetStudentById")]
+        public async Task<ActionResult<Student>> GetStudentById(
+    int id,
+    [FromServices] IAuthorizationService authorizationService)
+        {
+            if (id < 1)
+                return BadRequest("Invalid student id.");
+
+            var student = StudentDataSimulation.StudentsList
+                .FirstOrDefault(s => s.Id == id);
+
+            if (student == null)
+                return NotFound("Student not found.");
+
+            var authResult = await authorizationService.AuthorizeAsync(
+                User,
+                id,
+                "StudentOwnerOrAdmin");
+
+            if (!authResult.Succeeded)
+                return Forbid(); // 403
+
             return Ok(student);
         }
 
