@@ -4,6 +4,9 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using StudentApi.Authorization;
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+
 
 
 
@@ -65,6 +68,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         // This must be the same key used when generating the token.
         IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes("THIS_IS_A_VERY_SECRET_KEY_123456"))
+        ,
+        ClockSkew=TimeSpan.Zero
     };
 });
 
@@ -110,6 +115,8 @@ builder.Services.AddSwaggerGen(options =>
 
         // Text shown in Swagger UI to guide the user.
         Description = "Enter: Bearer {your JWT token}"
+
+
     });
 
 
@@ -140,6 +147,26 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("AuthLimiter", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ip,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -152,6 +179,18 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("StudentApiPolicy");
+
+app.UseRateLimiter();
+
+app.Use(async (context, next) =>
+{
+    await next();
+
+    if (context.Response.StatusCode == StatusCodes.Status429TooManyRequests)
+    {
+        await context.Response.WriteAsync("Too many login attempts. Please try again later.");
+    }
+});
 
 app.UseAuthorization();
 

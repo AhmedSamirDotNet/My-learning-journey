@@ -9,7 +9,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-
+using Microsoft.AspNetCore.RateLimiting;
 
 
 namespace StudentApi.Controllers
@@ -23,6 +23,7 @@ namespace StudentApi.Controllers
         // This endpoint handles user login.
         // It verifies credentials and returns a JWT token if login succeeds.
         [HttpPost("login")]
+        [EnableRateLimiting("AuthLimiter")]
         public IActionResult Login([FromBody] StudentApi.DTOs.Auth.LoginRequest request)
         {
             // Step 1: Find the student by email from the in-memory data store.
@@ -115,6 +116,7 @@ namespace StudentApi.Controllers
         }
 
         [HttpPost("refresh")]
+        [EnableRateLimiting("AuthLimiter")]
         public IActionResult Refresh([FromBody] StudentApi.DTOs.Auth.RefreshRequest request)
         {
             var student = StudentDataSimulation.StudentsList
