@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -151,20 +151,40 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // 1. سياسة الـ IP (للمجهولين - Login)
     options.AddPolicy("AuthLimiter", httpContext =>
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1)
+        });
+    });
 
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ip,
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
-            });
+    // 2. سياسة الـ User (للمسجلين - باقي الـ Endpoints)
+    options.AddPolicy("UserPolicy", httpContext =>
+    {
+        // بنحاول نجيب الـ NameIdentifier (UserId) من الـ Claims
+        var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                     ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                     ?? "unknown";
+
+        //return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
+        //{
+        //    PermitLimit = 60, // ليميت أعلى للمستخدم المسجل
+        //    Window = TimeSpan.FromMinutes(1)
+        //});
+        return RateLimitPartition.GetSlidingWindowLimiter(userId, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 4, // بيقسم الدقيقة لـ 4 أجزاء عشان يراقب الوقت بدقة
+            QueueLimit = 0
+        });
     });
 });
+
 
 
 var app = builder.Build();

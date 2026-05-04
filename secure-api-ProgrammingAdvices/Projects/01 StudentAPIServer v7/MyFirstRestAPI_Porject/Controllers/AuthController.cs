@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using StudentApi.Attributes;
 using StudentApi.DataSimulation;
 using StudentApi.DTOs.Auth;
 using StudentApi.Models;
@@ -9,7 +11,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.AspNetCore.RateLimiting;
 
 
 namespace StudentApi.Controllers
@@ -24,6 +25,7 @@ namespace StudentApi.Controllers
         // It verifies credentials and returns a JWT token if login succeeds.
         [HttpPost("login")]
         [EnableRateLimiting("AuthLimiter")]
+        [ProofOfWork]
         public IActionResult Login([FromBody] StudentApi.DTOs.Auth.LoginRequest request)
         {
             // Step 1: Find the student by email from the in-memory data store.
